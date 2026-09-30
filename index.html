@@ -246,6 +246,8 @@ main { min-height: calc(100vh - 76px); padding:35px 6%; position:relative; z-ind
 .post-action-btn:hover { border-color: var(--accent-2); color:#fff; }
 .post-action-btn.liked { color: #ff4d6d; border-color: #ff4d6d; background: rgba(255,77,109,0.08); }
 .post-action-btn:disabled { opacity:0.5; cursor:not-allowed; }
+.post-action-btn.delete-btn { color: #ff4d6d; border-color: rgba(255,77,109,0.4); }
+.post-action-btn.delete-btn:hover { background: rgba(255,77,109,0.12); border-color: #ff4d6d; }
 .post-comments { margin-top:12px; padding-top:10px; border-top:1px solid var(--border-soft); display:none; }
 .post-comments.open { display:block; }
 .comment { display:flex; gap:10px; padding:8px 0; border-bottom:1px solid var(--border-soft); }
@@ -253,9 +255,11 @@ main { min-height: calc(100vh - 76px); padding:35px 6%; position:relative; z-ind
 .comment-avatar { width:32px; height:32px; border-radius:50%; background: linear-gradient(135deg,var(--accent-1),var(--accent-2)); display:flex; align-items:center; justify-content:center; font-weight:700; font-size:13px; overflow:hidden; flex-shrink:0; }
 .comment-avatar img { width:100%; height:100%; object-fit:cover; }
 .comment-body { flex:1; min-width:0; }
-.comment-meta { font-size:11px; color: var(--text-muted); margin-bottom:2px; }
+.comment-meta { font-size:11px; color: var(--text-muted); margin-bottom:2px; display:flex; align-items:center; gap:6px; }
 .comment-meta b { color: var(--text-primary); font-weight:600; cursor:pointer; }
 .comment-meta b:hover { color: var(--accent-3); }
+.comment-delete-btn { background:none; border:none; color:#ff4d6d; cursor:pointer; font-size:15px; padding:0 4px; line-height:1; opacity:0.7; transition: opacity var(--transition); }
+.comment-delete-btn:hover { opacity:1; }
 .comment-text { font-size:13px; line-height:1.4; word-break:break-word; white-space:pre-wrap; }
 .comment-form { display:flex; gap:8px; margin-top:10px; }
 .comment-form input { flex:1; height:40px; margin:0; font-size:13px; }
@@ -354,6 +358,7 @@ main { min-height: calc(100vh - 76px); padding:35px 6%; position:relative; z-ind
 }
 .confirm-modal-box h3 { margin-bottom: 18px; font-size: 17px; }
 .confirm-modal-btns { display: flex; gap: 10px; justify-content: center; }
+.confirm-modal-btns .register-button.danger-btn { background: linear-gradient(90deg,#ef4444,#dc2626); }
 .call-modal-box {
     background: linear-gradient(145deg, var(--card-bg-1), var(--card-bg-2));
     border: 1px solid var(--border-strong); border-radius: var(--radius-xl);
@@ -523,7 +528,6 @@ main { min-height: calc(100vh - 76px); padding:35px 6%; position:relative; z-ind
 
 .mobile-app-header,.mobile-top-tabs,.mobile-bottom-nav,.mobile-search-panel,.mobile-home,.mobile-create-page { display:none; }
 
-/* ===== НОВОЕ: мобильное меню создания ===== */
 .mobile-create-sheet {
     position: fixed;
     left: 10px; right: 10px;
@@ -549,7 +553,6 @@ main { min-height: calc(100vh - 76px); padding:35px 6%; position:relative; z-ind
 .mobile-create-sheet button:hover { background: rgba(142,53,255,.2); }
 .mobile-create-sheet .sheet-icon { font-size: 20px; width: 24px; text-align: center; }
 
-/* ===== МОБИЛЬНАЯ РЕГИСТРАЦИЯ ===== */
 .mobile-auth { display: none; }
 
 @media (max-width:700px) {
@@ -574,7 +577,6 @@ body.light .mobile-app-header{background:rgba(255,255,255,.94);}
 .mobile-create-page{padding-top:5px}.mobile-create-head{height:48px;display:flex;align-items:center;justify-content:space-between}.mobile-create-title{font-size:18px;font-weight:700}.mobile-create-close{width:38px;height:38px;border-radius:50%;border:1px solid #34416a;background:transparent;color:#fff;font-size:20px}.mobile-create-text{width:100%;height:180px;border-radius:17px;resize:none;padding:16px;font-size:14px;line-height:1.5;background:linear-gradient(145deg,rgba(12,18,40,.94),rgba(7,12,28,.94));border-color:#34416a}.mobile-create-media{height:145px;border-radius:17px;border:1px dashed #6e46a7;margin-top:10px;display:flex;align-items:center;justify-content:center;color:#d5d8eb;flex-direction:column;gap:7px;cursor:pointer;overflow:hidden}.mobile-create-media-icon{font-size:29px;color:#9d4dff}.mobile-create-preview{max-width:100%;max-height:145px;object-fit:contain;display:none}.mobile-create-publish{width:100%;height:49px;border-radius:25px;margin-top:14px}
 .fab-create,.create-menu{display:none!important}.mobile-no-tabs .mobile-top-tabs{display:none!important}
 
-/* МОБИЛЬНАЯ РЕГИСТРАЦИЯ — скрываем десктопную, показываем мобильную */
 #page-auth .main-auth { display: none !important; }
 #page-auth .mobile-auth {
     display: flex;
@@ -715,7 +717,6 @@ body.light .mobile-auth-title {
     <main>
     
         <div class="page active" id="page-auth">
-            <!-- ДЕСКТОПНАЯ ВЕРСИЯ -->
             <div class="main-auth">
                 <section class="hero">
                     <div class="hero-logo"><span class="hero-fire">🔥</span><span class="hero-title">Hot</span></div>
@@ -738,7 +739,6 @@ body.light .mobile-auth-title {
                 </section>
             </div>
     
-            <!-- МОБИЛЬНАЯ ВЕРСИЯ (только для телефонов) -->
             <div class="mobile-auth">
                 <div class="mobile-auth-logo">
                     <span class="mobile-auth-logo-fire">🔥</span>
@@ -927,7 +927,6 @@ body.light .mobile-auth-title {
         
         </main>
         
-        <!-- ===== НОВОЕ НИЖНЕЕ МЕНЮ С НАСТРОЙКАМИ ===== -->
         <div class="mobile-bottom-nav hidden" id="mobile-bottom-nav">
             <button type="button" class="mobile-bottom-item active" id="mobile-bottom-home"><span class="mobile-bottom-icon">⌂</span><span>Главная</span></button>
             <button type="button" class="mobile-bottom-item" id="mobile-bottom-feed"><span class="mobile-bottom-icon">▤</span><span>Посты</span></button>
@@ -936,7 +935,6 @@ body.light .mobile-auth-title {
             <button type="button" class="mobile-bottom-item" id="mobile-bottom-settings"><span class="mobile-bottom-icon">⚙</span><span>Настройки</span></button>
         </div>
         
-        <!-- ===== НОВОЕ: МОБИЛЬНОЕ МЕНЮ СОЗДАНИЯ (ПОСТ / КАНАЛ / ЧАТ) ===== -->
         <div class="mobile-create-sheet hidden" id="mobile-create-sheet">
             <button type="button" id="mobile-sheet-post"><span class="sheet-icon">📝</span>Создать пост</button>
             <button type="button" id="mobile-sheet-channel"><span class="sheet-icon">📢</span>Создать канал</button>
@@ -947,6 +945,17 @@ body.light .mobile-auth-title {
         <audio id="remote-audio" autoplay></audio>
         
         <div class="modal-backdrop hidden" id="profile-menu-modal"><div class="confirm-modal-box"><h3 id="profile-menu-title">Действия</h3><div class="confirm-modal-btns" style="flex-direction:column;"><button type="button" class="register-button" style="width:100%;margin-top:0;" id="profile-menu-block">🚫 Заблокировать</button><button type="button" class="btn-secondary" style="width:100%;" id="profile-menu-cancel">Отмена</button></div></div></div>
+        
+        <!-- МОДАЛКА ПОДТВЕРЖДЕНИЯ УДАЛЕНИЯ -->
+        <div class="modal-backdrop hidden" id="confirm-delete-modal">
+            <div class="confirm-modal-box">
+                <h3 id="confirm-delete-text">Удалить это сообщение?</h3>
+                <div class="confirm-modal-btns">
+                    <button type="button" class="register-button danger-btn" style="padding:0 25px;height:45px;margin-top:0;" id="confirm-delete-yes">Удалить</button>
+                    <button type="button" class="btn-secondary" style="height:45px;" id="confirm-delete-no">Отмена</button>
+                </div>
+            </div>
+        </div>
         
         <div class="modal-backdrop hidden" id="forward-modal">
             <div class="forward-modal-box">
@@ -998,8 +1007,8 @@ body.light .mobile-auth-title {
             
             var currentLang = localStorage.getItem('hot_lang') || 'ru';
             var I18N = {
-                ru: { navHome: "Главная", navFeed: "Посты", navPeople: "Люди", navFriends: "Друзья", navCommunication: "Общение", navWall: "Страница", navMessages: "Сообщения", searchPlaceholder: "Поиск людей и каналов...", logoutTitle: "Вы точно хотите выйти?", yes: "Да", no: "Нет", addAccount: "+ Добавить аккаунт", subscribe: "Подписаться", unsubscribe: "Отписаться", exactMatch: "Точное совпадение", loginBtn: "Войти", logoutBtn: "Выйти", regTitle: "Регистрация", regDesc: "Создай аккаунт и начни общаться", loginTitle: "Вход", loginDesc: "Войди в свой аккаунт", submitReg: "Создать аккаунт →", submitLogin: "Войти →", alreadyHave: "Уже есть аккаунт? ", noAccount: "Нет аккаунта? ", createChannel: "📢 Создать канал", createChat: "💬 Создать чат", saveChanges: "Сохранить изменения", save: "Сохранить", cancel: "Отмена", create: "Создать", publish: "Опубликовать", send: "Отправить", addFriend: "Добавить в друзья", removeFriend: "Удалить из друзей", reqSent: "Заявка отправлена (Отменить)", accept: "Принять", decline: "Отклонить", incomingReqsTitle: "Заявки в друзья", myFriendsTitle: "Мои друзья", friendsBlockTitle: "Друзья", noFriends: "Пока нет друзей", heroSub: "Социальная сеть", profileSettings: "Настройки профиля", profileSub: "Измени свой ник и аватар", backToHome: "Назад на главную", back: "Назад", like: "Нравится", repost: "Репост", reposted: "Репостнуто", writeMsg: "Написать сообщение", postPlaceholder: "Что нового?", addPic: "Добавить картинку", online: "в сети", wasOnline: "был(а)", wasOnlineYesterday: "был(а) вчера в", callBtn: "📞 Звонок", incomingCall: "Входящий звонок...", outgoingCall: "Вызов...", callConnected: "Идёт разговор", communicationTitle: "📢 Общение", communicationDesc: "Каналы и групповые чаты", communicationEmpty: "Пока нет каналов и чатов. Создай первый!", pinned: "Закреплённое", pinAction: "Закрепить", unpinAction: "Открепить" },
-                en: { navHome: "Home", navFeed: "Posts", navPeople: "People", navFriends: "Friends", navCommunication: "Chats", navWall: "Profile", navMessages: "Messages", searchPlaceholder: "Search people & channels...", logoutTitle: "Are you sure you want to log out?", yes: "Yes", no: "No", addAccount: "+ Add account", subscribe: "Subscribe", unsubscribe: "Unsubscribe", exactMatch: "Exact match", loginBtn: "Log in", logoutBtn: "Log out", regTitle: "Sign Up", regDesc: "Create an account and start connecting", loginTitle: "Log In", loginDesc: "Sign in to your account", submitReg: "Create account →", submitLogin: "Log in →", alreadyHave: "Already have an account? ", noAccount: "Don't have an account? ", createChannel: "📢 Create Channel", createChat: "💬 Create Chat", saveChanges: "Save Changes", save: "Save", cancel: "Cancel", create: "Create", publish: "Publish", send: "Send", addFriend: "Add Friend", removeFriend: "Remove Friend", reqSent: "Request Sent (Cancel)", accept: "Accept", decline: "Decline", incomingReqsTitle: "Friend Requests", myFriendsTitle: "My Friends", friendsBlockTitle: "Friends", noFriends: "No friends yet", heroSub: "Social Network", profileSettings: "Profile Settings", profileSub: "Change your username and avatar", backToHome: "Back to Home", back: "Back", like: "Like", repost: "Repost", reposted: "Reposted", writeMsg: "Message", postPlaceholder: "What's new?", addPic: "Add photo", online: "online", wasOnline: "last seen", wasOnlineYesterday: "last seen yesterday at", callBtn: "📞 Call", incomingCall: "Incoming call...", outgoingCall: "Calling...", callConnected: "Connected", communicationTitle: "📢 Chats", communicationDesc: "Channels and group chats", communicationEmpty: "No channels or chats yet. Create one!", pinned: "Pinned", pinAction: "Pin", unpinAction: "Unpin" }
+                ru: { navHome: "Главная", navFeed: "Посты", navPeople: "Люди", navFriends: "Друзья", navCommunication: "Общение", navWall: "Страница", navMessages: "Сообщения", searchPlaceholder: "Поиск людей и каналов...", logoutTitle: "Вы точно хотите выйти?", yes: "Да", no: "Нет", addAccount: "+ Добавить аккаунт", subscribe: "Подписаться", unsubscribe: "Отписаться", exactMatch: "Точное совпадение", loginBtn: "Войти", logoutBtn: "Выйти", regTitle: "Регистрация", regDesc: "Создай аккаунт и начни общаться", loginTitle: "Вход", loginDesc: "Войди в свой аккаунт", submitReg: "Создать аккаунт →", submitLogin: "Войти →", alreadyHave: "Уже есть аккаунт? ", noAccount: "Нет аккаунта? ", createChannel: "📢 Создать канал", createChat: "💬 Создать чат", saveChanges: "Сохранить изменения", save: "Сохранить", cancel: "Отмена", create: "Создать", publish: "Опубликовать", send: "Отправить", addFriend: "Добавить в друзья", removeFriend: "Удалить из друзей", reqSent: "Заявка отправлена (Отменить)", accept: "Принять", decline: "Отклонить", incomingReqsTitle: "Заявки в друзья", myFriendsTitle: "Мои друзья", friendsBlockTitle: "Друзья", noFriends: "Пока нет друзей", heroSub: "Социальная сеть", profileSettings: "Настройки профиля", profileSub: "Измени свой ник и аватар", backToHome: "Назад на главную", back: "Назад", like: "Нравится", repost: "Репост", reposted: "Репостнуто", writeMsg: "Написать сообщение", postPlaceholder: "Что нового?", addPic: "Добавить картинку", online: "в сети", wasOnline: "был(а)", wasOnlineYesterday: "был(а) вчера в", callBtn: "📞 Звонок", incomingCall: "Входящий звонок...", outgoingCall: "Вызов...", callConnected: "Идёт разговор", communicationTitle: "📢 Общение", communicationDesc: "Каналы и групповые чаты", communicationEmpty: "Пока нет каналов и чатов. Создай первый!", pinned: "Закреплённое", pinAction: "Закрепить", unpinAction: "Открепить", deleteAction: "Удалить", deleteConfirmMsg: "Удалить это сообщение?", deleteConfirmPost: "Удалить этот пост?", deleteConfirmComment: "Удалить этот комментарий?", deleteConfirmChannel: "Удалить это сообщение из канала?", forwardAction: "Переслать" },
+                en: { navHome: "Home", navFeed: "Posts", navPeople: "People", navFriends: "Friends", navCommunication: "Chats", navWall: "Profile", navMessages: "Messages", searchPlaceholder: "Search people & channels...", logoutTitle: "Are you sure you want to log out?", yes: "Yes", no: "No", addAccount: "+ Add account", subscribe: "Subscribe", unsubscribe: "Unsubscribe", exactMatch: "Exact match", loginBtn: "Log in", logoutBtn: "Log out", regTitle: "Sign Up", regDesc: "Create an account and start connecting", loginTitle: "Log In", loginDesc: "Sign in to your account", submitReg: "Create account →", submitLogin: "Log in →", alreadyHave: "Already have an account? ", noAccount: "Don't have an account? ", createChannel: "📢 Create Channel", createChat: "💬 Create Chat", saveChanges: "Save Changes", save: "Save", cancel: "Cancel", create: "Create", publish: "Publish", send: "Send", addFriend: "Add Friend", removeFriend: "Remove Friend", reqSent: "Request Sent (Cancel)", accept: "Accept", decline: "Decline", incomingReqsTitle: "Friend Requests", myFriendsTitle: "My Friends", friendsBlockTitle: "Friends", noFriends: "No friends yet", heroSub: "Social Network", profileSettings: "Profile Settings", profileSub: "Change your username and avatar", backToHome: "Back to Home", back: "Back", like: "Like", repost: "Repost", reposted: "Reposted", writeMsg: "Message", postPlaceholder: "What's new?", addPic: "Add photo", online: "online", wasOnline: "last seen", wasOnlineYesterday: "last seen yesterday at", callBtn: "📞 Call", incomingCall: "Incoming call...", outgoingCall: "Calling...", callConnected: "Connected", communicationTitle: "📢 Chats", communicationDesc: "Channels and group chats", communicationEmpty: "No channels or chats yet. Create one!", pinned: "Pinned", pinAction: "Pin", unpinAction: "Unpin", deleteAction: "Delete", deleteConfirmMsg: "Delete this message?", deleteConfirmPost: "Delete this post?", deleteConfirmComment: "Delete this comment?", deleteConfirmChannel: "Delete this message from channel?", forwardAction: "Forward" }
             };
             
             var pageAuth = document.getElementById('page-auth');
@@ -1163,6 +1172,24 @@ body.light .mobile-auth-title {
             var forwardModalClose = document.getElementById('forward-modal-close');
             var forwardPreview = document.getElementById('forward-preview');
             var forwardModalList = document.getElementById('forward-modal-list');
+            
+            /* ===== МОДАЛКА ПОДТВЕРЖДЕНИЯ УДАЛЕНИЯ ===== */
+            function confirmDelete(text, onYes) {
+                var modal = document.getElementById('confirm-delete-modal');
+                var textEl = document.getElementById('confirm-delete-text');
+                var yesBtn = document.getElementById('confirm-delete-yes');
+                var noBtn = document.getElementById('confirm-delete-no');
+                if (!modal || !textEl || !yesBtn || !noBtn) return;
+                textEl.textContent = text || 'Удалить это сообщение?';
+                modal.classList.remove('hidden');
+                var newYes = yesBtn.cloneNode(true);
+                yesBtn.parentNode.replaceChild(newYes, yesBtn);
+                var newNo = noBtn.cloneNode(true);
+                noBtn.parentNode.replaceChild(newNo, noBtn);
+                newYes.addEventListener('click', function () { modal.classList.add('hidden'); if (onYes) onYes(); });
+                newNo.addEventListener('click', function () { modal.classList.add('hidden'); });
+                modal.addEventListener('click', function (e) { if (e.target === modal) modal.classList.add('hidden'); });
+            }
             
             function closeContextMenu() {
                 if (contextMenuEl && contextMenuEl.parentNode) contextMenuEl.parentNode.removeChild(contextMenuEl);
@@ -1341,7 +1368,6 @@ body.light .mobile-auth-title {
                 document.getElementById('channel-post-btn').textContent = t.publish;
                 document.getElementById('groupchat-send-btn').textContent = t.send;
                 document.getElementById('dm-send-btn').textContent = t.send;
-                // Синхронизация десктопной формы регистрации
                 if (mode === 'register') {
                     document.getElementById('auth-title').textContent = t.regTitle;
                     document.getElementById('auth-description').textContent = t.regDesc;
@@ -1354,7 +1380,7 @@ body.light .mobile-auth-title {
                     document.getElementById('switch-line').innerHTML = t.noAccount + '<a id="switch-mode">' + (currentLang==='ru'?'Зарегистрироваться':'Sign Up') + '</a>';
                 }
                 bindSwitch();
-                syncMobileAuth();
+                if (typeof syncMobileAuth === 'function') syncMobileAuth();
             }
             document.getElementById('lang-btn').addEventListener('click', function() {
                 currentLang = currentLang === 'ru' ? 'en' : 'ru';
@@ -1397,7 +1423,7 @@ body.light .mobile-auth-title {
             document.getElementById('add-account-btn').addEventListener('click', function() { accountDropdown.classList.add('hidden'); setMode('register'); showPage('auth'); });
             
             /* ===================================================== */
-            /* ============ ФИКС №1: ЗВУК ГУДКА ЗВОНКА ============= */
+            /* ============ ЗВУК ГУДКА ЗВОНКА ====================== */
             /* ===================================================== */
             var audioCtx = null;
             var toneOscillator = null;
@@ -1683,9 +1709,6 @@ body.light .mobile-auth-title {
             }
             function closeMobileCreatePost(){ showPage('home'); }
             
-            /* ===================================================== */
-            /* ============ ФИКС №2: ПОИСК НА ТЕЛЕФОНЕ ============= */
-            /* ===================================================== */
             function runMobileSearch() {
                 var q = (mobileSearchInput.value || '').trim().toLowerCase().replace(/^@+/, '');
                 if (!q) { mobileSearchResults.innerHTML = ''; return; }
@@ -1818,6 +1841,7 @@ body.light .mobile-auth-title {
                 r.readAsDataURL(file);
             }
             
+            /* ===== ПОСТЫ ===== */
             function renderPostActions(p) {
                 var likes = Array.isArray(p.likes) ? p.likes : [];
                 var comments = Array.isArray(p.comments) ? p.comments : [];
@@ -1825,11 +1849,16 @@ body.light .mobile-auth-title {
                 var reposted = !!p.repostedByViewer;
                 var repostId = p.repostOf && p.repostOf.id ? p.repostOf.id : p.id;
                 var t = I18N[currentLang];
-                return '<div class="post-actions">'
+                var isMine = !!(currentUser && p.username && p.username.toLowerCase() === currentUser.username.toLowerCase());
+                var html = '<div class="post-actions">'
                     + '<button type="button" class="post-action-btn' + (liked ? ' liked' : '') + '" data-action="like" data-id="' + escapeHtml(p.id) + '"><span>❤</span><span class="like-count">' + likes.length + '</span></button>'
                     + '<button type="button" class="post-action-btn" data-action="comment" data-id="' + escapeHtml(p.id) + '"><span>💬</span><span>' + comments.length + '</span></button>'
-                    + '<button type="button" class="post-action-btn' + (reposted ? ' reposted' : '') + '" data-action="repost" data-id="' + escapeHtml(repostId) + '"><span>🔁</span><span class="repost-label-text">' + (reposted ? t.reposted : t.repost) + '</span></button>'
-                    + '</div><div class="post-comments" data-comments-for="' + escapeHtml(p.id) + '"></div>';
+                    + '<button type="button" class="post-action-btn' + (reposted ? ' reposted' : '') + '" data-action="repost" data-id="' + escapeHtml(repostId) + '"><span>🔁</span><span class="repost-label-text">' + (reposted ? t.reposted : t.repost) + '</span></button>';
+                if (isMine) {
+                    html += '<button type="button" class="post-action-btn delete-btn" data-action="delete" data-id="' + escapeHtml(p.id) + '"><span>🗑</span><span>' + t.deleteAction + '</span></button>';
+                }
+                html += '</div><div class="post-comments" data-comments-for="' + escapeHtml(p.id) + '"></div>';
+                return html;
             }
             function renderPost(p) {
                 var date = p.createdAt ? new Date(p.createdAt).toLocaleString('ru-RU') : '';
@@ -1873,6 +1902,16 @@ body.light .mobile-auth-title {
                     if (!currentUser) return; btn.disabled = true;
                     apiPost('/api/posts/repost', { id: id, username: currentUser.username }).then(function (data) { var textEl = btn.querySelector('.repost-label-text'); var t = I18N[currentLang]; if (data.reposted) { btn.classList.add('reposted'); if (textEl) textEl.textContent = t.reposted; } else { btn.classList.remove('reposted'); if (textEl) textEl.textContent = t.repost; } }).catch(function (err) { alert(err.message || 'Ошибка репоста'); }).then(function () { btn.disabled = false; });
                 }
+                else if (action === 'delete') {
+                    if (!currentUser) return;
+                    var t = I18N[currentLang];
+                    confirmDelete(t.deleteConfirmPost, function () {
+                        apiPost('/api/posts/delete', { postId: id, user: currentUser.username }).then(function () {
+                            var postEl = document.querySelector('.wall-post[data-post-id="' + id + '"]');
+                            if (postEl) postEl.remove();
+                        }).catch(function (e) { alert(e.message || 'Ошибка удаления'); });
+                    });
+                }
             }
             function toggleComments(postId, btn) {
                 var container = document.querySelector('.post-comments[data-comments-for="' + postId + '"]'); if (!container) return;
@@ -1883,13 +1922,36 @@ body.light .mobile-auth-title {
             function renderComments(container, postId, comments) {
                 var html = '';
                 if (comments.length === 0) html += '<p style="color:#9aa4c7;font-size:13px;padding:6px 0;">' + (currentLang==='ru'?'Пока нет комментариев':'No comments yet') + '</p>';
-                else { for (var i = 0; i < comments.length; i++) { var c = comments[i]; html += '<div class="comment"><div class="comment-avatar">' + (c.avatar ? '<img src="' + c.avatar + '" alt="">' : getInitial(c.username)) + '</div><div class="comment-body"><div class="comment-meta"><b data-username="' + escapeHtml(c.username) + '">' + escapeHtml(c.username) + '</b> · ' + formatTime(c.createdAt) + '</div><div class="comment-text">' + escapeHtml(c.text) + '</div></div></div>'; } }
+                else {
+                    for (var i = 0; i < comments.length; i++) {
+                        var c = comments[i];
+                        var isMine = !!(currentUser && c.username && c.username.toLowerCase() === currentUser.username.toLowerCase());
+                        html += '<div class="comment" data-comment-id="' + escapeHtml(c.id || '') + '"><div class="comment-avatar">' + (c.avatar ? '<img src="' + c.avatar + '" alt="">' : getInitial(c.username)) + '</div><div class="comment-body"><div class="comment-meta"><b data-username="' + escapeHtml(c.username) + '">' + escapeHtml(c.username) + '</b> · ' + formatTime(c.createdAt);
+                        if (isMine && c.id) html += ' <button type="button" class="comment-delete-btn" data-comment-id="' + escapeHtml(c.id) + '" title="Удалить">×</button>';
+                        html += '</div><div class="comment-text">' + escapeHtml(c.text) + '</div></div></div>';
+                    }
+                }
                 html += '<form class="comment-form" data-post-id="' + escapeHtml(postId) + '"><input class="input" type="text" placeholder="' + (currentLang==='ru'?'Написать комментарий...':'Write a comment...') + '" maxlength="1000"><button type="submit" class="btn-upload">' + (currentLang==='ru'?'Отправить':'Send') + '</button></form>';
                 container.innerHTML = html;
                 var f = container.querySelector('.comment-form');
                 if (f) f.addEventListener('submit', function (e) { e.preventDefault(); if (!currentUser) return; var input = f.querySelector('input'); var text = input.value.trim(); if (!text) return; var sBtn = f.querySelector('button'); sBtn.disabled = true; apiPost('/api/posts/comment', { id: postId, username: currentUser.username, text: text }).then(function (data) { input.value = ''; renderComments(container, postId, data.comments || []); }).catch(function (err) { alert(err.message || 'Ошибка'); }).then(function () { sBtn.disabled = false; }); });
                 var names = container.querySelectorAll('.comment-meta b');
                 for (var k = 0; k < names.length; k++) { names[k].addEventListener('click', function (e) { var u = e.currentTarget.getAttribute('data-username'); if (u) openWall(u); }); }
+                container.querySelectorAll('.comment-delete-btn').forEach(function (btn) {
+                    btn.addEventListener('click', function (e) {
+                        e.stopPropagation();
+                        var cid = btn.getAttribute('data-comment-id');
+                        if (!cid) return;
+                        var t = I18N[currentLang];
+                        confirmDelete(t.deleteConfirmComment, function () {
+                            apiPost('/api/posts/comment/delete', { postId: postId, commentId: cid, user: currentUser.username }).then(function () {
+                                apiGet('/api/posts/comments?id=' + encodeURIComponent(postId)).then(function (data) {
+                                    renderComments(container, postId, data.comments || []);
+                                });
+                            }).catch(function (err) { alert(err.message || 'Ошибка удаления'); });
+                        });
+                    });
+                });
             }
             function openFeed() { if (!currentUser) return; showPage('feed'); loadFeed(); }
             function loadFeed() { feedPostsEl.innerHTML = '<p style="color:#9aa4c7;">...</p>'; apiGet('/api/posts/feed?viewer=' + encodeURIComponent(currentUser.username)).then(function (data) { renderPosts(feedPostsEl, data.posts || []); }).catch(function () { feedPostsEl.innerHTML = '<p style="color:#ff4d6d;">Error</p>'; }); }
@@ -2110,13 +2172,18 @@ body.light .mobile-auth-title {
                     var msgId = msgRow.getAttribute('data-msg-id');
                     var msgData = { id: msgId, text: bubble.getAttribute('data-msg-text'), from: bubble.getAttribute('data-msg-from') };
                     var items = [];
-                    items.push({ action: 'forward', icon: '↪', label: 'Переслать', handler: function(){ openForwardModal(msgData); } });
+                    items.push({ action: 'forward', icon: '↪', label: I18N[currentLang].forwardAction, handler: function(){ openForwardModal(msgData); } });
                     if (isOwner) {
                         if (pinnedMessageId === msgId) {
                             items.push({ action: 'unpin', icon: '📌', label: I18N[currentLang].unpinAction, danger: true, handler: function(){ apiPost('/api/channels/pin', { channel: activeChannelUsername, messageId: msgId, user: currentUser.username, pinned: false }).then(function(){ loadChannel(true); }); } });
                         } else {
                             items.push({ action: 'pin', icon: '📌', label: I18N[currentLang].pinAction, handler: function(){ apiPost('/api/channels/pin', { channel: activeChannelUsername, messageId: msgId, user: currentUser.username, pinned: true }).then(function(){ loadChannel(true); }); } });
                         }
+                        items.push({ action: 'delete', icon: '🗑', label: I18N[currentLang].deleteAction, danger: true, handler: function(){
+                            confirmDelete(I18N[currentLang].deleteConfirmChannel, function(){
+                                apiPost('/api/channels/message/delete', { channel: activeChannelUsername, messageId: msgId, user: currentUser.username }).then(function(){ loadChannel(true); }).catch(function(e){ alert(e.message || 'Ошибка удаления'); });
+                            });
+                        }});
                     }
                     items.push({ action: 'cancel', icon: '✕', label: 'Отмена', danger: true });
                     attachLongPress(bubble, msgData, items);
@@ -2163,13 +2230,21 @@ body.light .mobile-auth-title {
                     var msgId = msgRow.getAttribute('data-msg-id');
                     var msgData = { id: msgId, text: bubble.getAttribute('data-msg-text'), from: bubble.getAttribute('data-msg-from') };
                     var items = [];
-                    items.push({ action: 'forward', icon: '↪', label: 'Переслать', handler: function(){ openForwardModal(msgData); } });
+                    items.push({ action: 'forward', icon: '↪', label: I18N[currentLang].forwardAction, handler: function(){ openForwardModal(msgData); } });
+                    var isOwnGc = !!(currentUser && msgData.from && msgData.from.toLowerCase() === currentUser.username.toLowerCase());
                     if (isOwner) {
                         if (pinnedMessageId === msgId) {
                             items.push({ action: 'unpin', icon: '📌', label: I18N[currentLang].unpinAction, danger: true, handler: function(){ apiPost('/api/chats/pin', { chatId: activeGroupChatId, messageId: msgId, user: currentUser.username, pinned: false }).then(function(){ loadGroupChat(); }); } });
                         } else {
                             items.push({ action: 'pin', icon: '📌', label: I18N[currentLang].pinAction, handler: function(){ apiPost('/api/chats/pin', { chatId: activeGroupChatId, messageId: msgId, user: currentUser.username, pinned: true }).then(function(){ loadGroupChat(); }); } });
                         }
+                    }
+                    if (isOwnGc || isOwner) {
+                        items.push({ action: 'delete', icon: '🗑', label: I18N[currentLang].deleteAction, danger: true, handler: function(){
+                            confirmDelete(I18N[currentLang].deleteConfirmMsg, function(){
+                                apiPost('/api/chats/message/delete', { chatId: activeGroupChatId, messageId: msgId, user: currentUser.username }).then(function(){ loadGroupChat(); }).catch(function(e){ alert(e.message || 'Ошибка удаления'); });
+                            });
+                        }});
                     }
                     items.push({ action: 'cancel', icon: '✕', label: 'Отмена', danger: true });
                     attachLongPress(bubble, msgData, items);
@@ -2238,7 +2313,16 @@ body.light .mobile-auth-title {
                     var msgRow = bubble.closest('.chat-msg');
                     var msgData = { id: msgRow.getAttribute('data-msg-id'), text: bubble.getAttribute('data-msg-text'), from: bubble.getAttribute('data-msg-from') };
                     if (!msgData.text) return;
-                    var items = [{ action: 'forward', icon: '↪', label: 'Переслать', handler: function(){ openForwardModal(msgData); } }, { action: 'cancel', icon: '✕', label: 'Отмена', danger: true }];
+                    var items = [{ action: 'forward', icon: '↪', label: I18N[currentLang].forwardAction, handler: function(){ openForwardModal(msgData); } }];
+                    var isOwnMsg = !!(currentUser && msgData.from && msgData.from.toLowerCase() === currentUser.username.toLowerCase());
+                    if (isOwnMsg && msgData.id) {
+                        items.push({ action: 'delete', icon: '🗑', label: I18N[currentLang].deleteAction, danger: true, handler: function(){
+                            confirmDelete(I18N[currentLang].deleteConfirmMsg, function(){
+                                apiPost('/api/dm/delete', { messageId: msgData.id, user: currentUser.username }).then(function(){ loadDmMessages(true); }).catch(function(e){ alert(e.message || 'Ошибка удаления'); });
+                            });
+                        }});
+                    }
+                    items.push({ action: 'cancel', icon: '✕', label: 'Отмена', danger: true });
                     attachLongPress(bubble, msgData, items);
                 });
             }
@@ -2339,7 +2423,6 @@ body.light .mobile-auth-title {
                 });
             }
             
-            /* ===== ДЕСКТОПНАЯ ФОРМА РЕГИСТРАЦИИ ===== */
             form.addEventListener('submit', function (e) {
                 e.preventDefault(); clearErrors();
                 var email = emailInput.value.trim().replace(/[\s\u00A0\u200B\uFEFF]/g, ''); emailInput.value = email;
@@ -2505,9 +2588,7 @@ body.light .mobile-auth-title {
             mobileCreateImage.addEventListener('change',function(){var file=mobileCreateImage.files&&mobileCreateImage.files[0];if(!file)return;if(file.size>MAX_POST_IMAGE_SIZE){mobileCreateError.textContent='Файл больше 10 МБ';mobileCreateError.classList.add('visible');mobileCreateImage.value='';return;}resizeImageFit(file,POST_IMAGE_MAX_DIM,function(dataURL){if(!dataURL)return;pendingMobilePostImage=dataURL;mobileCreatePreview.src=dataURL;mobileCreatePreview.style.display='block';});});
             document.getElementById('mobile-create-publish').addEventListener('click',function(){if(!currentUser)return;var text=mobileCreateText.value.trim();if(!text&&!pendingMobilePostImage){mobileCreateError.textContent='Добавь текст или картинку';mobileCreateError.classList.add('visible');return;}mobileCreateError.classList.remove('visible');var btn=document.getElementById('mobile-create-publish');btn.disabled=true;apiPost('/api/posts',{username:currentUser.username,text:text,image:pendingMobilePostImage}).then(function(){btn.disabled=false;closeMobileCreatePost();loadMobileHomeFeed();}).catch(function(e){btn.disabled=false;mobileCreateError.textContent=e.message||'Ошибка публикации';mobileCreateError.classList.add('visible');});});
             
-            /* ===================================================== */
-            /* ===== МОБИЛЬНАЯ РЕГИСТРАЦИЯ (синхронизация) ========= */
-            /* ===================================================== */
+            /* ===== МОБИЛЬНАЯ РЕГИСТРАЦИЯ ===== */
             var mobileMode = 'register';
             var mobileForm = document.getElementById('mobile-register-form');
             var mobileUsernameInput = document.getElementById('mobile-username');
