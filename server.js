@@ -506,6 +506,111 @@ async function handleChannelPin(req, res) {
     } catch (e) { sendJSON(res, 500, { error: 'Ошибка сервера' }); }
 }
 
+/* ===== УДАЛЕНИЕ СООБЩЕНИЙ ===== */
+
+async function handleChannelMessageDelete(req, res) {
+    try {
+        const data = await readBody(req);
+        const channelUsername = normalizeHandle(data.channel || '');
+        const messageId = (data.messageId || '').trim();
+        const user = (data.user || '').trim();
+        if (!channelUsername || !messageId || !user) return sendJSON(res, 400, { error: 'Недостаточно данных' });
+        const channels = readChannels();
+        const c = channels.find(x => x.username.toLowerCase() === channelUsername.toLowerCase());
+        if (!c) return sendJSON(res, 404, { error: 'Канал не найден' });
+        if (c.owner.toLowerCase() !== user.toLowerCase()) return sendJSON(res, 403, { error: 'Только владелец канала может удалять сообщения' });
+        const before = (c.messages || []).length;
+        c.messages = (c.messages || []).filter(m => m.id !== messageId);
+        if (c.messages.length === before) return sendJSON(res, 404, { error: 'Сообщение не найдено' });
+        if (c.pinnedMessageId === messageId) c.pinnedMessageId = null;
+        saveChannels(channels);
+        sendJSON(res, 200, { ok: true });
+    } catch (e) { sendJSON(res, 500, { error: 'Ошибка сервера' }); }
+}
+
+async function handleChatMessageDelete(req, res) {
+    try {
+        const data = await readBody(req);
+        const chatId = (data.chatId || '').trim();
+        const messageId = (data.messageId || '').trim();
+        const user = (data.user || '').trim();
+        if (!chatId || !messageId || !user) return sendJSON(res, 400, { error: 'Недостаточно данных' });
+        const chats = readChats();
+        const c = chats.find(x => x.id === chatId);
+        if (!c) return sendJSON(res, 404, { error: 'Чат не найден' });
+        const msg = (c.messages || []).find(m => m.id === messageId);
+        if (!msg) return sendJSON(res, 404, { error: 'Сообщение не найдено' });
+        const isAuthor = msg.from && msg.from.toLowerCase() === user.toLowerCase();
+        const isOwner = c.owner && c.owner.toLowerCase() === user.toLowerCase();
+        if (!isAuthor && !isOwner) return sendJSON(res, 403, { error: 'Можно удалять только свои сообщения' });
+        c.messages = (c.messages || []).filter(m => m.id !== messageId);
+        if (c.pinnedMessageId === messageId) c.pinnedMessageId = null;
+        saveChats(chats);
+        sendJSON(res, 200, { ok: true });
+    } catch (e) { sendJSON(res, 500, { error: 'Ошибка сервера' }); }
+}
+
+async function handleDmDelete(req, res) {
+    try {
+        const data = await readBody(req);
+        const messageId = (data.messageId || '').trim();
+        const user = (data.user || '').trim();
+        if (!messageId || !user) return sendJSON(res, 400, { error: 'Недостаточно данных' });
+        const dms = readDms();
+        const idx = dms.findIndex(m => m.id === messageId);
+        if (idx === -1) return sendJSON(res, 404, { error: 'Сообщение не найдено' });
+        if (!dms[idx].from || dms[idx].from.toLowerCase() !== user.toLowerCase()) return sendJSON(res, 403, { error: 'Можно удалять только свои сообщения' });
+        dms.splice(idx, 1);
+        saveDms(dms);
+        sendJSON(res, 200, { ok: true });
+    } catch (e) { sendJSON(res, 500, { error: 'Ошибка сервера' }); }
+}
+
+async function handlePostDelete(req, res) {
+    try {
+        const data = await readBody(req);
+        const postId = (data.postId || '').trim();
+        const user = (data.user || '').trim();
+        if (!postId || !user) return sendJSON(res, 400, { error: 'Недостаточно данных' });
+        const posts = readPosts();
+        const idx = posts.findIndex(p => p.id === postId);
+        if (idx === -1) return sendJSON(res, 404, { error: 'Пост не найден' });
+        if (!posts[idx].username || posts[idx].username.toLowerCase() !== user.toLowerCase()) return sendJSON(res, 403, { error: 'Можно удалять только свои посты' });
+        const removed = posts[idx];
+        if (removed.repostOf && removed.repostOf.id) {
+            const origIdx = posts.findIndex(p => p.id === removed.repostOf.id);
+            if (origIdx !== -1 && typeof posts[origIdx].repostCount === 'number') {
+                posts[origIdx].repostCount = Math.max(0, posts[origIdx].repostCount - 1);
+            }
+        }
+        posts.splice(idx, 1);
+        savePosts(posts);
+        sendJSON(res, 200, { ok: true });
+    } catch (e) { sendJSON(res, 500, { error: 'Ошибка сервера' }); }
+}
+
+async function handleCommentDelete(req, res) {
+    try {
+        const data = await readBody(req);
+        const postId = (data.postId || '').trim();
+        const commentId = (data.commentId || '').trim();
+        const user = (data.user || '').trim();
+        if (!postId || !commentId || !user) return sendJSON(res, 400, { error: 'Недостаточно данных' });
+        const posts = readPosts();
+        const p = posts.find(x => x.id === postId);
+        if (!p) return sendJSON(res, 404, { error: 'Пост не найден' });
+        if (!Array.isArray(p.comments)) return sendJSON(res, 404, { error: 'Комментарий не найден' });
+        const cIdx = p.comments.findIndex(c => c.id === commentId);
+        if (cIdx === -1) return sendJSON(res, 404, { error: 'Комментарий не найден' });
+        if (!p.comments[cIdx].username || p.comments[cIdx].username.toLowerCase() !== user.toLowerCase()) return sendJSON(res, 403, { error: 'Можно удалять только свои комментарии' });
+        p.comments.splice(cIdx, 1);
+        savePosts(posts);
+        sendJSON(res, 200, { ok: true });
+    } catch (e) { sendJSON(res, 500, { error: 'Ошибка сервера' }); }
+}
+
+/* ===== ОСТАЛЬНЫЕ ЭНДПОИНТЫ ===== */
+
 async function handleRegister(req, res) {
     try {
         const data = await readBody(req);
@@ -913,11 +1018,13 @@ const server = http.createServer(function (req, res) {
     if (url === '/api/channels/messages' && req.method === 'GET') return handleChannelMessagesGet(req, res, query);
     if (url === '/api/channels/message' && req.method === 'POST') return handleChannelMessageCreate(req, res);
     if (url === '/api/channels/message/reaction' && req.method === 'POST') return handleChannelMessageReaction(req, res);
+    if (url === '/api/channels/message/delete' && req.method === 'POST') return handleChannelMessageDelete(req, res);
     if (url === '/api/channels/pin' && req.method === 'POST') return handleChannelPin(req, res);
     if (url === '/api/chats' && req.method === 'GET') return handleChatsGet(req, res, query);
     if (url === '/api/chats' && req.method === 'POST') return handleChatCreate(req, res);
     if (url === '/api/chats/messages' && req.method === 'GET') return handleChatMessagesGet(req, res, query);
     if (url === '/api/chats/message' && req.method === 'POST') return handleChatMessageCreate(req, res);
+    if (url === '/api/chats/message/delete' && req.method === 'POST') return handleChatMessageDelete(req, res);
     if (url === '/api/chats/pin' && req.method === 'POST') return handleChatPin(req, res);
     if (url === '/api/posts/feed' && req.method === 'GET') return handleFeedGet(req, res, query);
     if (url === '/api/posts' && req.method === 'GET') return handlePostsGet(req, res, query);
@@ -926,9 +1033,12 @@ const server = http.createServer(function (req, res) {
     if (url === '/api/posts/comment' && req.method === 'POST') return handlePostComment(req, res);
     if (url === '/api/posts/comments' && req.method === 'GET') return handleCommentsGet(req, res, query);
     if (url === '/api/posts/repost' && req.method === 'POST') return handlePostRepost(req, res);
+    if (url === '/api/posts/delete' && req.method === 'POST') return handlePostDelete(req, res);
+    if (url === '/api/posts/comment/delete' && req.method === 'POST') return handleCommentDelete(req, res);
     if (url === '/api/dm' && req.method === 'GET') return handleDmGet(req, res, query);
     if (url === '/api/dm' && req.method === 'POST') return handleDmCreate(req, res);
     if (url === '/api/dm/forward' && req.method === 'POST') return handleForward(req, res);
+    if (url === '/api/dm/delete' && req.method === 'POST') return handleDmDelete(req, res);
     if (url === '/api/dm/conversations' && req.method === 'GET') return handleDmConversations(req, res, query);
     if (url === '/api/dm/unread-count' && req.method === 'GET') return handleDmUnreadCount(req, res, query);
     if (url === '/api/communication' && req.method === 'GET') return handleCommunication(req, res, query);
