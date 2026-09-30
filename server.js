@@ -1,4 +1,4 @@
-﻿const http = require('http');
+const http = require('http');
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
@@ -87,7 +87,7 @@ async function handleHeartbeat(req, res) {
             saveUsers(users);
             const dms = readDms();
             let changed = false;
-            dms.forEach(m => { if (m.to.toLowerCase() === username && !m.delivered) { m.delivered = true; changed = true; } });
+            dms.forEach(m => { if (m.to && m.to.toLowerCase() === username && !m.delivered) { m.delivered = true; changed = true; } });
             if (changed) saveDms(dms);
         }
         sendJSON(res, 200, { ok: true });
@@ -104,6 +104,13 @@ async function handleCallSignalSend(req, res) {
         const data = await readBody(req);
         const { to, from, type, sdp, candidate } = data;
         if (!to || !from || !type) return sendJSON(res, 400, { error: 'Missing call params' });
+        const _users = readUsers();
+        const _fromU = _users.find(u => u.username.toLowerCase() === String(from).toLowerCase());
+        const _toU = _users.find(u => u.username.toLowerCase() === String(to).toLowerCase());
+        if (_fromU && _toU) {
+            if ((_fromU.blocked || []).some(b => b.toLowerCase() === String(to).toLowerCase())) return sendJSON(res, 403, { error: 'Вы заблокировали этого пользователя' });
+            if ((_toU.blocked || []).some(b => b.toLowerCase() === String(from).toLowerCase())) return sendJSON(res, 403, { error: 'Пользователь заблокировал вас' });
+        }
         pushCallSignal(to, { from, to, type, sdp, candidate, time: Date.now() });
         sendJSON(res, 200, { ok: true });
     } catch (e) { sendJSON(res, 500, { error: 'Error' }); }
@@ -112,6 +119,99 @@ function handleCallSignalPoll(req, res, query) {
     const user = (query.user || '').trim().toLowerCase();
     if (!user) return sendJSON(res, 400, { error: 'No user' });
     sendJSON(res, 200, { signals: popCallSignals(user) });
+}
+
+async function handleCallLog(req, res) {
+    try {
+        const data = await readBody(req);
+        const from = (data.from || '').trim();
+        const to = (data.to || '').trim();
+        const type = (data.type || '').trim();
+        const duration = parseInt(data.duration || 0, 10) || 0;
+        if (!from || !to || !type) return sendJSON(res, 400, { error: 'Недостаточно данных' });
+        if (!['outgoing', 'incoming', 'missed', 'cancelled', 'declined'].includes(type)) return sendJSON(res, 400, { error: 'Неизвестный тип звонка' });
+        const msg = { id: makeId(), from: from, to: to, type: 'call', callType: type, duration: duration, delivered: true, read: true, createdAt: new Date().toISOString() };
+        const dms = readDms();
+        dms.push(msg);
+        saveDms(dms.length > 5000 ? dms.slice(-5000) : dms);
+        sendJSON(res, 201, { message: msg });
+    } catch (e) { sendJSON(res, 500, { error: 'Ошибка сервера' }); }
+}
+
+async function handleBlockToggle(req, res) {
+    try {
+        const data = await readBody(req);
+        const me = (data.me || '').trim();
+        const target = (data.target || '').trim();
+        if (!me || !target) return sendJSON(res, 400, { error: 'Недостаточно данных' });
+        if (me.toLowerCase() === target.toLowerCase()) return sendJSON(res, 400, { error: 'Нельзя заблокировать себя' });
+        const users = readUsers();
+        const meUser = users.find(u => u.username.toLowerCase() === me.toLowerCase());
+        const targetUser = users.find(u => u.username.toLowerCase() === target.toLowerCase());
+        if (!meUser || !targetUser) return sendJSON(res, 404, { error: 'Пользователь не найден' });
+        if (!Array.isArray(meUser.blocked)) meUser.blocked = [];
+        const lowerTarget = targetUser.username.toLowerCase();
+        const idx = meUser.blocked.findIndex(b => b.toLowerCase() === lowerTarget);
+        let blocked;
+        if (idx === -1) { meUser.blocked.push(targetUser.username); blocked = true; }
+        else { meUser.blocked.splice(idx, 1); blocked = false; }
+        saveUsers(users);
+        sendJSON(res, 200, { blocked: blocked, blockedList: meUser.blocked });
+    } catch (e) { sendJSON(res, 500, { error: 'Ошибка сервера' }); }
+}
+function handleBlockedList(req, res, query) {
+    const username = (query.username || '').trim().toLowerCase();
+    const users = readUsers();
+    const me = users.find(u => u.username.toLowerCase() === username);
+    if (!me) return sendJSON(res, 404, { error: 'Пользователь не найден' });
+    const blockedNames = Array.isArray(me.blocked) ? me.blocked : [];
+    const list = users
+        .filter(u => blockedNames.some(b => b.toLowerCase() === u.username.toLowerCase()))
+        .map(u => ({ username: u.username, avatar: u.avatar || '', handle: u.handle || '' }));
+    sendJSON(res, 200, { blocked: list });
+}
+function handleBlockStatus(req, res, query) {
+    const me = (query.me || '').trim().toLowerCase();
+    const target = (query.target || '').trim().toLowerCase();
+    const users = readUsers();
+    const meUser = users.find(u => u.username.toLowerCase() === me);
+    const targetUser = users.find(u => u.username.toLowerCase() === target);
+    if (!meUser || !targetUser) return sendJSON(res, 404, { error: 'Пользователь не найден' });
+    const iBlocked = (meUser.blocked || []).some(b => b.toLowerCase() === target);
+    const heBlocked = (targetUser.blocked || []).some(b => b.toLowerCase() === me);
+    sendJSON(res, 200, { iBlocked: iBlocked, heBlocked: heBlocked, mutual: iBlocked || heBlocked });
+}
+
+async function handleForward(req, res) {
+    try {
+        const data = await readBody(req);
+        const from = (data.from || '').trim();
+        const to = (data.to || '').trim();
+        const text = (data.text || '').trim();
+        const originalFrom = (data.originalFrom || '').trim();
+        if (!from || !to || !text) return sendJSON(res, 400, { error: 'Недостаточно данных' });
+        const users = readUsers();
+        const sender = users.find(u => u.username.toLowerCase() === from.toLowerCase());
+        const recipient = users.find(u => u.username.toLowerCase() === to.toLowerCase());
+        if (!sender || !recipient) return sendJSON(res, 404, { error: 'Пользователь не найден' });
+        if ((sender.blocked || []).some(b => b.toLowerCase() === to.toLowerCase())) return sendJSON(res, 403, { error: 'Вы заблокировали этого пользователя' });
+        if ((recipient.blocked || []).some(b => b.toLowerCase() === from.toLowerCase())) return sendJSON(res, 403, { error: 'Пользователь заблокировал вас' });
+        const isOnline = recipient.lastSeen && (Date.now() - new Date(recipient.lastSeen).getTime() < 35000);
+        const message = {
+            id: makeId(),
+            from: sender.username,
+            to: recipient.username,
+            text: text,
+            forwardedFrom: originalFrom || null,
+            delivered: !!isOnline,
+            read: false,
+            createdAt: new Date().toISOString()
+        };
+        const dms = readDms();
+        dms.push(message);
+        saveDms(dms.length > 5000 ? dms.slice(-5000) : dms);
+        sendJSON(res, 201, { message });
+    } catch (e) { sendJSON(res, 500, { error: 'Ошибка сервера' }); }
 }
 
 async function handleUpdateProfile(req, res) {
@@ -134,46 +234,40 @@ async function handleUpdateProfile(req, res) {
             const d = new Date(birthdayRaw + 'T00:00:00Z');
             if (isNaN(d.getTime()) || d.getTime() > Date.now()) return sendJSON(res, 400, { error: 'Некорректная дата рождения' });
         }
-
         if (!currentUsername) return sendJSON(res, 400, { error: 'Не указан текущий пользователь' });
         if (newUsername.length < 3 || newUsername.length > 20) return sendJSON(res, 400, { error: 'Ник — от 3 до 20 символов' });
         if (hasAvatar && typeof avatar === 'string' && avatar.length > MAX_BODY_SIZE) return sendJSON(res, 400, { error: 'Аватар слишком большой' });
         if (hasHandle && handle && !HANDLE_RE.test(handle)) return sendJSON(res, 400, { error: 'Юзернейм: 3-20 символов, латиница, цифры и _' });
-
         const users = readUsers();
         const user = users.find(u => u.username.toLowerCase() === currentUsername.toLowerCase());
         if (!user) return sendJSON(res, 404, { error: 'Пользователь не найден' });
-
         const lowerNewName = newUsername.toLowerCase();
         const lowerOldName = user.username.toLowerCase();
         const usernameChanged = lowerNewName !== lowerOldName;
         const avatarChanged = hasAvatar && avatar !== user.avatar;
-
         if (usernameChanged && users.some(u => u !== user && u.username.toLowerCase() === lowerNewName)) return sendJSON(res, 409, { error: 'Такое имя уже занято' });
         if (hasHandle && handle && users.some(u => u !== user && (u.handle || '').toLowerCase() === handle.toLowerCase())) return sendJSON(res, 409, { error: 'Такой юзернейм уже занят' });
-
         user.username = newUsername;
         if (hasAvatar) user.avatar = typeof avatar === 'string' ? avatar : '';
         if (hasHandle) user.handle = handle;
         if (hasTheme && theme) user.theme = theme;
         if (hasWallpaper) user.wallpaper = wallpaper;
         if (hasBirthday) user.birthday = birthdayRaw;
-
         if (usernameChanged) {
             users.forEach(u => {
                 if (Array.isArray(u.friends)) u.friends = u.friends.map(f => f.toLowerCase() === lowerOldName ? newUsername : f);
                 if (Array.isArray(u.incomingRequests)) u.incomingRequests = u.incomingRequests.map(r => r.toLowerCase() === lowerOldName ? newUsername : r);
+                if (Array.isArray(u.blocked)) u.blocked = u.blocked.map(b => b.toLowerCase() === lowerOldName ? newUsername : b);
             });
         }
         saveUsers(users);
-
         if (usernameChanged || avatarChanged) {
             if (usernameChanged) {
                 const dms = readDms();
                 let changed = false;
                 dms.forEach(m => {
-                    if (m.from.toLowerCase() === lowerOldName) { m.from = newUsername; changed = true; }
-                    if (m.to.toLowerCase() === lowerOldName) { m.to = newUsername; changed = true; }
+                    if (m.from && m.from.toLowerCase() === lowerOldName) { m.from = newUsername; changed = true; }
+                    if (m.to && m.to.toLowerCase() === lowerOldName) { m.to = newUsername; changed = true; }
                 });
                 if (changed) saveDms(dms);
             }
@@ -186,7 +280,6 @@ async function handleUpdateProfile(req, res) {
                 if (Array.isArray(p.comments)) p.comments.forEach(c => { if (c.username.toLowerCase() === lowerOldName) { c.username = newUsername; if (avatarChanged) c.avatar = user.avatar; pc = true; } });
             });
             if (pc) savePosts(posts);
-
             const channels = readChannels();
             let cc = false;
             channels.forEach(ch => {
@@ -194,18 +287,19 @@ async function handleUpdateProfile(req, res) {
                 if (Array.isArray(ch.members)) { const i = ch.members.findIndex(m => m.toLowerCase() === lowerOldName); if (i !== -1) { ch.members[i] = newUsername; cc = true; } }
             });
             if (cc) saveChannels(channels);
-
             const chats = readChats();
             let chc = false;
             chats.forEach(ch => {
                 if (ch.owner.toLowerCase() === lowerOldName) { ch.owner = newUsername; chc = true; }
                 if (Array.isArray(ch.members)) { const i = ch.members.findIndex(m => m.toLowerCase() === lowerOldName); if (i !== -1) { ch.members[i] = newUsername; chc = true; } }
-                if (Array.isArray(ch.messages)) ch.messages.forEach(msg => { if (msg.from.toLowerCase() === lowerOldName) { msg.from = newUsername; chc = true; } });
+                if (Array.isArray(ch.messages)) ch.messages.forEach(msg => {
+                    if (msg.from && msg.from.toLowerCase() === lowerOldName) { msg.from = newUsername; chc = true; }
+                    if (Array.isArray(msg.read)) msg.read = msg.read.map(r => r.toLowerCase() === lowerOldName ? newUsername : r);
+                });
             });
             if (chc) saveChats(chats);
         }
-
-        sendJSON(res, 200, { oldUsername: currentUsername, username: user.username, email: user.email, avatar: user.avatar || '', handle: user.handle || '', theme: user.theme || 'dark', wallpaper: user.wallpaper || '', birthday: user.birthday || '', friends: user.friends || [] });
+        sendJSON(res, 200, { oldUsername: currentUsername, username: user.username, email: user.email, avatar: user.avatar || '', handle: user.handle || '', theme: user.theme || 'dark', wallpaper: user.wallpaper || '', birthday: user.birthday || '', friends: user.friends || [], blocked: user.blocked || [] });
     } catch (e) { sendJSON(res, 500, { error: 'Ошибка сервера' }); }
 }
 
@@ -228,6 +322,8 @@ async function handleFriendAction(req, res) {
         const lowerMe = meUser.username.toLowerCase();
         const lowerTarget = targetUser.username.toLowerCase();
         if (action === 'send') {
+            if ((meUser.blocked || []).some(b => b.toLowerCase() === lowerTarget)) return sendJSON(res, 403, { error: 'Вы заблокировали этого пользователя' });
+            if ((targetUser.blocked || []).some(b => b.toLowerCase() === lowerMe)) return sendJSON(res, 403, { error: 'Пользователь заблокировал вас' });
             if (!targetUser.incomingRequests.some(r => r.toLowerCase() === lowerMe)) targetUser.incomingRequests.push(meUser.username);
         } else if (action === 'cancel') {
             targetUser.incomingRequests = targetUser.incomingRequests.filter(r => r.toLowerCase() !== lowerMe);
@@ -287,7 +383,7 @@ async function handleChannelCreate(req, res) {
         if (!HANDLE_RE.test(username)) return sendJSON(res, 400, { error: 'Юзернейм: 3-20 символов' });
         const channels = readChannels();
         if (channels.some(c => c.username.toLowerCase() === username.toLowerCase())) return sendJSON(res, 409, { error: 'Юзернейм канала занят' });
-        const channel = { id: makeId(), username, name, description: (data.description || '').trim(), avatar: data.avatar || '', owner, members: [owner], messages: [], createdAt: new Date().toISOString() };
+        const channel = { id: makeId(), username, name, description: (data.description || '').trim(), avatar: data.avatar || '', owner, members: [owner], messages: [], pinnedMessageId: null, createdAt: new Date().toISOString() };
         channels.push(channel); saveChannels(channels);
         sendJSON(res, 201, { channel: channelPublic(channel, owner) });
     } catch (e) { sendJSON(res, 500, { error: 'Ошибка сервера' }); }
@@ -346,7 +442,7 @@ function handleChannelSearch(req, res, query) {
 function handleChannelMessagesGet(req, res, query) {
     const c = readChannels().find(x => x.username.toLowerCase() === normalizeHandle(query.username || '').toLowerCase());
     if (!c) return sendJSON(res, 404, { error: 'Канал не найден' });
-    sendJSON(res, 200, { messages: (c.messages || []).slice(-300) });
+    sendJSON(res, 200, { messages: (c.messages || []).slice(-300), pinnedMessageId: c.pinnedMessageId || null });
 }
 async function handleChannelMessageCreate(req, res) {
     try {
@@ -385,6 +481,30 @@ async function handleChannelMessageReaction(req, res) {
         sendJSON(res, 200, { reactions: msg.reactions });
     } catch (e) { sendJSON(res, 500, { error: 'Ошибка сервера' }); }
 }
+async function handleChannelPin(req, res) {
+    try {
+        const data = await readBody(req);
+        const channelUsername = normalizeHandle(data.channel || '');
+        const messageId = (data.messageId || '').trim();
+        const user = (data.user || '').trim();
+        const pinned = !!data.pinned;
+        if (!channelUsername || !user) return sendJSON(res, 400, { error: 'Недостаточно данных' });
+        const channels = readChannels();
+        const c = channels.find(x => x.username.toLowerCase() === channelUsername.toLowerCase());
+        if (!c) return sendJSON(res, 404, { error: 'Канал не найден' });
+        if (c.owner.toLowerCase() !== user.toLowerCase()) return sendJSON(res, 403, { error: 'Только владелец канала может закреплять' });
+        if (pinned) {
+            if (!messageId) return sendJSON(res, 400, { error: 'Не указано сообщение' });
+            const msg = (c.messages || []).find(m => m.id === messageId);
+            if (!msg) return sendJSON(res, 404, { error: 'Сообщение не найдено' });
+            c.pinnedMessageId = messageId;
+        } else {
+            c.pinnedMessageId = null;
+        }
+        saveChannels(channels);
+        sendJSON(res, 200, { ok: true, pinnedMessageId: c.pinnedMessageId });
+    } catch (e) { sendJSON(res, 500, { error: 'Ошибка сервера' }); }
+}
 
 async function handleRegister(req, res) {
     try {
@@ -403,12 +523,12 @@ async function handleRegister(req, res) {
             username, email, salt,
             passwordHash: hashPassword(password, salt),
             avatar: '', handle: '', theme: 'dark', wallpaper: '', birthday: '',
-            friends: [], incomingRequests: [],
+            friends: [], incomingRequests: [], blocked: [],
             createdAt: new Date().toISOString(), lastSeen: new Date().toISOString()
         };
         users.push(newUser);
         saveUsers(users);
-        sendJSON(res, 201, { username: newUser.username, email: newUser.email, avatar: newUser.avatar, handle: newUser.handle, theme: newUser.theme, wallpaper: newUser.wallpaper, birthday: newUser.birthday, friends: [], incomingRequests: [] });
+        sendJSON(res, 201, { username: newUser.username, email: newUser.email, avatar: newUser.avatar, handle: newUser.handle, theme: newUser.theme, wallpaper: newUser.wallpaper, birthday: newUser.birthday, friends: [], incomingRequests: [], blocked: [] });
     } catch (e) { sendJSON(res, 500, { error: 'Ошибка сервера' }); }
 }
 async function handleLogin(req, res) {
@@ -423,7 +543,7 @@ async function handleLogin(req, res) {
         if (hashPassword(password, user.salt) !== user.passwordHash) return sendJSON(res, 401, { error: 'Неверный пароль' });
         user.lastSeen = new Date().toISOString();
         saveUsers(users);
-        sendJSON(res, 200, { username: user.username, email: user.email, avatar: user.avatar || '', handle: user.handle || '', theme: user.theme || 'dark', wallpaper: user.wallpaper || '', birthday: user.birthday || '', friends: user.friends || [], incomingRequests: user.incomingRequests || [] });
+        sendJSON(res, 200, { username: user.username, email: user.email, avatar: user.avatar || '', handle: user.handle || '', theme: user.theme || 'dark', wallpaper: user.wallpaper || '', birthday: user.birthday || '', friends: user.friends || [], incomingRequests: user.incomingRequests || [], blocked: user.blocked || [] });
     } catch (e) { sendJSON(res, 500, { error: 'Ошибка сервера' }); }
 }
 function handleUsersList(req, res) {
@@ -549,6 +669,7 @@ async function handlePostRepost(req, res) {
         sendJSON(res, 201, { reposted: true, post: normalizePost(repost, true), repostCount: original.repostCount });
     } catch (e) { sendJSON(res, 500, { error: 'Ошибка сервера' }); }
 }
+
 async function handleChatCreate(req, res) {
     try {
         const data = await readBody(req);
@@ -556,7 +677,7 @@ async function handleChatCreate(req, res) {
         const name = (data.name || '').trim();
         let members = Array.isArray(data.members) ? data.members : [];
         if (!members.some(x => x.toLowerCase() === owner.toLowerCase())) members.unshift(owner);
-        const chat = { id: makeId(), name, owner, members, messages: [], createdAt: new Date().toISOString() };
+        const chat = { id: makeId(), name, owner, members, messages: [], pinnedMessageId: null, createdAt: new Date().toISOString() };
         const chats = readChats();
         chats.push(chat);
         saveChats(chats);
@@ -567,14 +688,37 @@ function handleChatsGet(req, res, query) {
     const user = (query.user || '').trim().toLowerCase();
     const list = readChats().filter(c => (c.members || []).some(m => m.toLowerCase() === user)).map(c => {
         const last = c.messages && c.messages.length ? c.messages[c.messages.length - 1] : null;
-        return { id: c.id, name: c.name, owner: c.owner, members: c.members, memberCount: c.members.length, lastText: last ? last.text : '', lastAt: last ? last.createdAt : c.createdAt };
+        let unread = 0;
+        (c.messages || []).forEach(m => {
+            if (m.from.toLowerCase() === user) return;
+            if (!Array.isArray(m.read)) return;
+            if (!m.read.some(u => u.toLowerCase() === user)) unread++;
+        });
+        return { id: c.id, name: c.name, owner: c.owner, members: c.members, memberCount: c.members.length, lastText: last ? last.text : '', lastAt: last ? last.createdAt : c.createdAt, unread: unread };
     });
     sendJSON(res, 200, { chats: list });
 }
 function handleChatMessagesGet(req, res, query) {
-    const chat = readChats().find(x => x.id === (query.id || '').trim());
+    const chatId = (query.id || '').trim();
+    const user = (query.user || '').trim();
+    const chats = readChats();
+    const chat = chats.find(x => x.id === chatId);
     if (!chat) return sendJSON(res, 404, { error: 'Чат не найден' });
-    sendJSON(res, 200, { chat: { id: chat.id, name: chat.name, memberCount: chat.members.length }, messages: (chat.messages || []).slice(-300) });
+    if (user) {
+        let changed = false;
+        (chat.messages || []).forEach(m => {
+            if (!Array.isArray(m.read)) m.read = [];
+            if (m.from.toLowerCase() !== user.toLowerCase() && !m.read.some(u => u.toLowerCase() === user.toLowerCase())) {
+                m.read.push(user);
+                changed = true;
+            }
+        });
+        if (changed) saveChats(chats);
+    }
+    sendJSON(res, 200, {
+        chat: { id: chat.id, name: chat.name, memberCount: chat.members.length, owner: chat.owner, pinnedMessageId: chat.pinnedMessageId || null },
+        messages: (chat.messages || []).slice(-300)
+    });
 }
 async function handleChatMessageCreate(req, res) {
     try {
@@ -582,11 +726,35 @@ async function handleChatMessageCreate(req, res) {
         const chats = readChats();
         const c = chats.find(x => x.id === data.id);
         if (!c) return sendJSON(res, 404, { error: 'Чат не найден' });
-        const msg = { id: makeId(), from: data.from.trim(), text: data.text.trim(), createdAt: new Date().toISOString() };
+        const msg = { id: makeId(), from: data.from.trim(), text: data.text.trim(), read: [], createdAt: new Date().toISOString() };
         if (!Array.isArray(c.messages)) c.messages = [];
         c.messages.push(msg);
         saveChats(chats);
         sendJSON(res, 201, { message: msg });
+    } catch (e) { sendJSON(res, 500, { error: 'Ошибка сервера' }); }
+}
+async function handleChatPin(req, res) {
+    try {
+        const data = await readBody(req);
+        const chatId = (data.chatId || '').trim();
+        const messageId = (data.messageId || '').trim();
+        const user = (data.user || '').trim();
+        const pinned = !!data.pinned;
+        if (!chatId || !user) return sendJSON(res, 400, { error: 'Недостаточно данных' });
+        const chats = readChats();
+        const c = chats.find(x => x.id === chatId);
+        if (!c) return sendJSON(res, 404, { error: 'Чат не найден' });
+        if (c.owner.toLowerCase() !== user.toLowerCase()) return sendJSON(res, 403, { error: 'Только создатель чата может закреплять' });
+        if (pinned) {
+            if (!messageId) return sendJSON(res, 400, { error: 'Не указано сообщение' });
+            const msg = (c.messages || []).find(m => m.id === messageId);
+            if (!msg) return sendJSON(res, 404, { error: 'Сообщение не найдено' });
+            c.pinnedMessageId = messageId;
+        } else {
+            c.pinnedMessageId = null;
+        }
+        saveChats(chats);
+        sendJSON(res, 200, { ok: true, pinnedMessageId: c.pinnedMessageId });
     } catch (e) { sendJSON(res, 500, { error: 'Ошибка сервера' }); }
 }
 
@@ -597,7 +765,7 @@ function handleDmGet(req, res, query) {
     const dms = readDms();
     let changed = false;
     dms.forEach(m => {
-        if (dmKey(m.from, m.to) === key && m.to.toLowerCase() === user.toLowerCase()) {
+        if (dmKey(m.from, m.to) === key && m.to.toLowerCase() === user.toLowerCase() && m.type !== 'call') {
             if (!m.delivered) { m.delivered = true; changed = true; }
             if (!m.read) { m.read = true; changed = true; }
         }
@@ -609,10 +777,16 @@ function handleDmGet(req, res, query) {
 async function handleDmCreate(req, res) {
     try {
         const data = await readBody(req);
-        const toUsername = data.to.trim().toLowerCase();
-        const recipient = readUsers().find(u => u.username.toLowerCase() === toUsername);
-        const isOnline = recipient && recipient.lastSeen && (Date.now() - new Date(recipient.lastSeen).getTime() < 35000);
-        const message = { id: makeId(), from: data.from.trim(), to: data.to.trim(), text: data.text.trim(), delivered: !!isOnline, read: false, createdAt: new Date().toISOString() };
+        const fromLower = (data.from || '').trim().toLowerCase();
+        const toLower = (data.to || '').trim().toLowerCase();
+        const users = readUsers();
+        const sender = users.find(u => u.username.toLowerCase() === fromLower);
+        const recipient = users.find(u => u.username.toLowerCase() === toLower);
+        if (!sender || !recipient) return sendJSON(res, 404, { error: 'Пользователь не найден' });
+        if ((sender.blocked || []).some(b => b.toLowerCase() === toLower)) return sendJSON(res, 403, { error: 'Вы заблокировали этого пользователя' });
+        if ((recipient.blocked || []).some(b => b.toLowerCase() === fromLower)) return sendJSON(res, 403, { error: 'Пользователь заблокировал вас' });
+        const isOnline = recipient.lastSeen && (Date.now() - new Date(recipient.lastSeen).getTime() < 35000);
+        const message = { id: makeId(), from: sender.username, to: recipient.username, text: data.text.trim(), delivered: !!isOnline, read: false, createdAt: new Date().toISOString() };
         const dms = readDms();
         dms.push(message);
         saveDms(dms.length > 5000 ? dms.slice(-5000) : dms);
@@ -625,25 +799,83 @@ function handleDmConversations(req, res, query) {
     const users = readUsers();
     const map = {};
     dms.forEach(m => {
-        const fromLower = m.from.toLowerCase();
-        const toLower = m.to.toLowerCase();
+        const fromLower = (m.from || '').toLowerCase();
+        const toLower = (m.to || '').toLowerCase();
         if (fromLower !== user && toLower !== user) return;
         const partnerName = fromLower === user ? m.to : m.from;
         const partnerLower = partnerName.toLowerCase();
         if (!map[partnerLower]) map[partnerLower] = { partnerUsername: partnerName, lastMessage: m, unread: 0 };
         if (new Date(m.createdAt) > new Date(map[partnerLower].lastMessage.createdAt)) map[partnerLower].lastMessage = m;
-        if (toLower === user && !m.read) map[partnerLower].unread++;
+        if (toLower === user && !m.read && m.type !== 'call') map[partnerLower].unread++;
     });
+    const callLabels = { outgoing: '📞 Исходящий', incoming: '📞 Входящий', missed: '📵 Пропущенный', cancelled: '❌ Отменён', declined: '📵 Отклонён' };
     const list = Object.keys(map).map(k => {
         const partner = users.find(u => u.username.toLowerCase() === k);
-        return { username: partner ? partner.username : map[k].partnerUsername, avatar: partner ? partner.avatar : '', handle: partner ? partner.handle : '', lastText: map[k].lastMessage.text, lastFrom: map[k].lastMessage.from, lastAt: map[k].lastMessage.createdAt, unread: map[k].unread };
+        const lastMsg = map[k].lastMessage;
+        let previewText = lastMsg.text || '';
+        if (lastMsg.forwardedFrom) previewText = '↪ ' + previewText;
+        if (lastMsg.type === 'call') {
+            let label = callLabels[lastMsg.callType] || '📞 Звонок';
+            let durStr = '';
+            if (lastMsg.duration > 0) {
+                const mm = Math.floor(lastMsg.duration / 60);
+                const ss = lastMsg.duration % 60;
+                durStr = ' ' + (mm < 10 ? '0' : '') + mm + ':' + (ss < 10 ? '0' : '') + ss;
+            }
+            previewText = label + durStr;
+        }
+        return { username: partner ? partner.username : map[k].partnerUsername, avatar: partner ? partner.avatar : '', handle: partner ? partner.handle : '', lastText: previewText, lastFrom: lastMsg.from, lastAt: lastMsg.createdAt, unread: map[k].unread };
     }).sort((a, b) => new Date(b.lastAt) - new Date(a.lastAt));
     sendJSON(res, 200, { conversations: list });
 }
 function handleDmUnreadCount(req, res, query) {
     const user = (query.user || '').trim().toLowerCase();
-    const count = readDms().filter(m => m.to.toLowerCase() === user && !m.read).length;
+    const count = readDms().filter(m => m.to && m.to.toLowerCase() === user && !m.read && m.type !== 'call').length;
     sendJSON(res, 200, { count });
+}
+
+function handleCommunication(req, res, query) {
+    const user = (query.user || '').trim().toLowerCase();
+    if (!user) return sendJSON(res, 400, { error: 'No user' });
+    const channelsList = readChannels()
+        .filter(c => {
+            if (c.owner.toLowerCase() === user) return true;
+            if ((c.members || []).some(m => m.toLowerCase() === user)) return true;
+            return false;
+        })
+        .map(c => {
+            const last = c.messages && c.messages.length ? c.messages[c.messages.length - 1] : null;
+            const isOwner = c.owner.toLowerCase() === user;
+            return { type: 'channel', id: c.id, username: c.username, name: c.name, avatar: c.avatar || '', members: Array.isArray(c.members) ? c.members.length : 0, isOwner: isOwner, lastText: last ? last.text : '', lastAt: last ? last.createdAt : c.createdAt, unread: 0 };
+        });
+    const chatsList = readChats()
+        .filter(c => (c.members || []).some(m => m.toLowerCase() === user))
+        .map(c => {
+            const last = c.messages && c.messages.length ? c.messages[c.messages.length - 1] : null;
+            let unread = 0;
+            (c.messages || []).forEach(m => {
+                if (m.from.toLowerCase() === user) return;
+                if (!Array.isArray(m.read)) return;
+                if (!m.read.some(u => u.toLowerCase() === user)) unread++;
+            });
+            return { type: 'chat', id: c.id, name: c.name, avatar: '', members: (c.members || []).length, isOwner: c.owner.toLowerCase() === user, lastText: last ? (last.from + ': ' + last.text) : '', lastAt: last ? last.createdAt : c.createdAt, unread: unread };
+        });
+    const all = channelsList.concat(chatsList).sort((a, b) => new Date(b.lastAt) - new Date(a.lastAt));
+    sendJSON(res, 200, { items: all });
+}
+function handleCommunicationUnreadCount(req, res, query) {
+    const user = (query.user || '').trim().toLowerCase();
+    if (!user) return sendJSON(res, 400, { error: 'No user' });
+    let count = 0;
+    readChats().forEach(c => {
+        if (!(c.members || []).some(m => m.toLowerCase() === user)) return;
+        (c.messages || []).forEach(m => {
+            if (m.from.toLowerCase() === user) return;
+            if (!Array.isArray(m.read)) return;
+            if (!m.read.some(u => u.toLowerCase() === user)) count++;
+        });
+    });
+    sendJSON(res, 200, { count: count });
 }
 
 const server = http.createServer(function (req, res) {
@@ -666,9 +898,13 @@ const server = http.createServer(function (req, res) {
     if (url === '/api/user/status' && req.method === 'GET') return handleUserStatus(req, res, query);
     if (url === '/api/call/signal' && req.method === 'POST') return handleCallSignalSend(req, res);
     if (url === '/api/call/poll' && req.method === 'GET') return handleCallSignalPoll(req, res, query);
+    if (url === '/api/call/log' && req.method === 'POST') return handleCallLog(req, res);
     if (url === '/api/friends/action' && req.method === 'POST') return handleFriendAction(req, res);
     if (url === '/api/friends/status' && req.method === 'GET') return handleFriendStatus(req, res, query);
     if (url === '/api/friends' && req.method === 'GET') return handleFriendsGet(req, res, query);
+    if (url === '/api/users/block' && req.method === 'POST') return handleBlockToggle(req, res);
+    if (url === '/api/users/blocked' && req.method === 'GET') return handleBlockedList(req, res, query);
+    if (url === '/api/users/block-status' && req.method === 'GET') return handleBlockStatus(req, res, query);
     if (url === '/api/channels' && req.method === 'GET') return handleChannelGet(req, res, query);
     if (url === '/api/channels' && req.method === 'POST') return handleChannelCreate(req, res);
     if (url === '/api/channels/update' && req.method === 'POST') return handleChannelUpdate(req, res);
@@ -677,10 +913,12 @@ const server = http.createServer(function (req, res) {
     if (url === '/api/channels/messages' && req.method === 'GET') return handleChannelMessagesGet(req, res, query);
     if (url === '/api/channels/message' && req.method === 'POST') return handleChannelMessageCreate(req, res);
     if (url === '/api/channels/message/reaction' && req.method === 'POST') return handleChannelMessageReaction(req, res);
+    if (url === '/api/channels/pin' && req.method === 'POST') return handleChannelPin(req, res);
     if (url === '/api/chats' && req.method === 'GET') return handleChatsGet(req, res, query);
     if (url === '/api/chats' && req.method === 'POST') return handleChatCreate(req, res);
     if (url === '/api/chats/messages' && req.method === 'GET') return handleChatMessagesGet(req, res, query);
     if (url === '/api/chats/message' && req.method === 'POST') return handleChatMessageCreate(req, res);
+    if (url === '/api/chats/pin' && req.method === 'POST') return handleChatPin(req, res);
     if (url === '/api/posts/feed' && req.method === 'GET') return handleFeedGet(req, res, query);
     if (url === '/api/posts' && req.method === 'GET') return handlePostsGet(req, res, query);
     if (url === '/api/posts' && req.method === 'POST') return handlePostsCreate(req, res);
@@ -690,8 +928,11 @@ const server = http.createServer(function (req, res) {
     if (url === '/api/posts/repost' && req.method === 'POST') return handlePostRepost(req, res);
     if (url === '/api/dm' && req.method === 'GET') return handleDmGet(req, res, query);
     if (url === '/api/dm' && req.method === 'POST') return handleDmCreate(req, res);
+    if (url === '/api/dm/forward' && req.method === 'POST') return handleForward(req, res);
     if (url === '/api/dm/conversations' && req.method === 'GET') return handleDmConversations(req, res, query);
     if (url === '/api/dm/unread-count' && req.method === 'GET') return handleDmUnreadCount(req, res, query);
+    if (url === '/api/communication' && req.method === 'GET') return handleCommunication(req, res, query);
+    if (url === '/api/communication/unread-count' && req.method === 'GET') return handleCommunicationUnreadCount(req, res, query);
 
     if (url === '/' || url === '/index.html') {
         try {
